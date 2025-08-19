@@ -1,0 +1,24 @@
+# Ignore Git & IDE
+.git
+.gitignore
+.idea
+*.iml
+.vscode
+*.swp
+
+# Maven build junk
+target/
+build/
+out/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker itself
+Dockerfile
+docker-compose*.yml
+
+# Misc
+HELP.md
