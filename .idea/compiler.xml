@@ -6,6 +6,8 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+        <module name="analytics-service" />
+        <module name="api-gateway" />
         <module name="patient-service" />
         <module name="billing-service" />
       </profile>
@@ -13,6 +15,8 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="analytics-service" options="-parameters" />
+      <module name="api-gateway" options="-parameters" />
       <module name="billing-service" options="-parameters" />
       <module name="patient-service" options="-parameters" />
     </option>
