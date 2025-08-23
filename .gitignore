@@ -59,4 +59,5 @@ application-*.properties
 ### Misc ###
 HELP.md
 integration-test/target/
-*.iml
+*.iml*.iml
+.idea/
