@@ -58,3 +58,4 @@ application-*.properties
 
 ### Misc ###
 HELP.md
+cdk.out/
