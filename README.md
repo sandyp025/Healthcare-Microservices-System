@@ -462,7 +462,8 @@ SPRING_SQL_INIT_MODE=always
 ### Database Configuration
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-DB-blue)
 
-#### Auth Service Database Setup
+### Data.Sql
+
 ```sql
 -- Ensure the 'users' table exists
 CREATE TABLE IF NOT EXISTS "users" (
