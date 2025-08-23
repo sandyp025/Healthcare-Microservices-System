@@ -7,7 +7,7 @@
 ![gRPC](https://img.shields.io/badge/gRPC-RPC%20Framework-lightblue)
 ![Postman](https://img.shields.io/badge/Postman-API%20Testing-orange)
 ![LocalStack](https://img.shields.io/badge/LocalStack-AWS%20Emulation-purple)
-
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ## Table of Contents
 
 - [System Architecture Overview](#system-architecture-overview)
@@ -51,21 +51,14 @@ A comprehensive healthcare management system built with modern microservices arc
 
 ![Docker Containers](screenshots/docker.png)
 
-| Service | Port | CPU Usage | Memory | Status |
-|---------|------|-----------|---------|---------|
-| **LocalStack** | 4566/443 | 4.71% | - | Running |
-| **Billing Service** | gRPC:9005 | 0.31% | - | Running |
-| **Analytics Service** | 4002 | 0.43% | - | Running |
-| **API Gateway** | 4004 | 0.25% | - | Running |
-| **Auth Service** | 4005 | 0.27% | - | Running |
-| **Patient Service** | 4000 | 0.27% | - | Running |
-
-### System Metrics
-- **Total CPU Usage**: 6.24% / 1000% (10 CPUs available)
-- **Memory Usage**: 4.52GB / 7.47GB
-- **API Calls**: 8-6-4-2 pattern with consistent performance
-- **Service Invocations**: Balanced across all microservices
-
+| Service | Port |
+|---------|------|
+| **LocalStack** | 4566/443 |
+| **Billing Service** | gRPC:9005 |
+| **Analytics Service** | 4002 |
+| **API Gateway** | 4004 |
+| **Auth Service** | 4005 |
+| **Patient Service** | 4000 |
 ## Quick Start
 
 ### Prerequisites
@@ -81,9 +74,9 @@ A comprehensive healthcare management system built with modern microservices arc
 #### Patient Service Variables:
 ```bash
 JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
-SPRING_DATASOURCE_PASSWORD=password
+SPRING_DATASOURCE_PASSWORD=your_password
 SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db
-SPRING_DATASOURCE_USERNAME=admin_user
+SPRING_DATASOURCE_USERNAME=admin
 SPRING_JPA_HIBERNATE_DDL_AUTO=update
 SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
 SPRING_SQL_INIT_MODE=always
