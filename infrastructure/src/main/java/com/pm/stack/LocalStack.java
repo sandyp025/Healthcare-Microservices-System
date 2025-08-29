@@ -59,8 +59,6 @@ public class LocalStack extends Stack {
         CfnHealthCheck patientDbHealthCheck =
                 createDbHealthCheck(patientServiceDb, "PatientServiceDBHealthCheck");
 
-        CfnCluster mskCluster = createMskCluster();
-
         this.ecsCluster = createEcsCluster();
 
         FargateService authService =
@@ -70,7 +68,7 @@ public class LocalStack extends Stack {
                         authServiceDb,
                         Map.of("JWT_SECRET", "c4cc689d1d57554261fb8c897bb0e47332980057d07b895d93f78a1a59e93315"));
 
-        authService.getNode().addDependency(authDbHealthCheck);
+        // Remove health check dependency - keep only database dependency
         authService.getNode().addDependency(authServiceDb);
 
         FargateService billingService =
@@ -87,8 +85,6 @@ public class LocalStack extends Stack {
                         null,
                         null);
 
-        analyticsService.getNode().addDependency(mskCluster);
-
         FargateService patientService = createFargateService("PatientService",
                 "patient-service",
                 List.of(4000),
@@ -98,9 +94,8 @@ public class LocalStack extends Stack {
                         "BILLING_SERVICE_GRPC_PORT", "9001"
                 ));
         patientService.getNode().addDependency(patientServiceDb);
-        patientService.getNode().addDependency(patientDbHealthCheck);
+        // Remove health check dependency - keep only database dependency
         patientService.getNode().addDependency(billingService);
-        patientService.getNode().addDependency(mskCluster);
 
         createApiGatewayService();
     }
@@ -118,7 +113,7 @@ public class LocalStack extends Stack {
                 .create(this, id)
                 .engine(DatabaseInstanceEngine.postgres(
                         PostgresInstanceEngineProps.builder()
-                                .version(PostgresEngineVersion.VER_17_2)
+                                .version(PostgresEngineVersion.VER_13_13)
                                 .build()))
                 .vpc(vpc)
                 .instanceType(InstanceType.of(InstanceClass.BURSTABLE2, InstanceSize.MICRO))
@@ -126,6 +121,7 @@ public class LocalStack extends Stack {
                 .credentials(Credentials.fromGeneratedSecret("admin_user"))
                 .databaseName(dbName)
                 .removalPolicy(RemovalPolicy.DESTROY)
+                .deletionProtection(false)
                 .build();
     }
 
@@ -137,21 +133,6 @@ public class LocalStack extends Stack {
                         .ipAddress(db.getDbInstanceEndpointAddress())
                         .requestInterval(30)
                         .failureThreshold(3)
-                        .build())
-                .build();
-    }
-
-    private CfnCluster createMskCluster(){
-        return CfnCluster.Builder.create(this, "MskCluster")
-                .clusterName("kafa-cluster")
-                .kafkaVersion("2.8.0")
-                .numberOfBrokerNodes(2)
-                .brokerNodeGroupInfo(CfnCluster.BrokerNodeGroupInfoProperty.builder()
-                        .instanceType("kafka.m5.xlarge")
-                        .clientSubnets(vpc.getPrivateSubnets().stream()
-                                .map(ISubnet::getSubnetId)
-                                .collect(Collectors.toList()))
-                        .brokerAzDistribution("DEFAULT")
                         .build())
                 .build();
     }
@@ -258,7 +239,6 @@ public class LocalStack extends Stack {
                                 .streamPrefix("api-gateway")
                                 .build()))
                         .build();
-
 
         taskDefinition.addContainer("APIGatewayContainer", containerOptions);
 
