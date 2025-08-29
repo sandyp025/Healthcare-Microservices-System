@@ -160,8 +160,9 @@ services:
 
 ## API Testing with Postman
 
+![Postman Testing](screenshots/postman2.png)
+######
 ![Postman Testing](screenshots/postman.png)
-
 ### Patient Management Collection
 ![Postman Collection](https://img.shields.io/badge/Postman-Collection-orange)
 
