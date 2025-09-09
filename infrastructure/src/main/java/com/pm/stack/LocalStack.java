@@ -17,16 +17,7 @@ import software.amazon.awscdk.services.ec2.InstanceClass;
 import software.amazon.awscdk.services.ec2.InstanceSize;
 import software.amazon.awscdk.services.ec2.InstanceType;
 import software.amazon.awscdk.services.ec2.Vpc;
-import software.amazon.awscdk.services.ecs.AwsLogDriverProps;
-import software.amazon.awscdk.services.ecs.CloudMapNamespaceOptions;
-import software.amazon.awscdk.services.ecs.Cluster;
-import software.amazon.awscdk.services.ecs.ContainerDefinitionOptions;
-import software.amazon.awscdk.services.ecs.ContainerImage;
-import software.amazon.awscdk.services.ecs.FargateService;
-import software.amazon.awscdk.services.ecs.FargateTaskDefinition;
-import software.amazon.awscdk.services.ecs.LogDriver;
-import software.amazon.awscdk.services.ecs.PortMapping;
-import software.amazon.awscdk.services.ecs.Protocol;
+import software.amazon.awscdk.services.ecs.*;
 import software.amazon.awscdk.services.ecs.patterns.ApplicationLoadBalancedFargateService;
 import software.amazon.awscdk.services.logs.LogGroup;
 import software.amazon.awscdk.services.logs.RetentionDays;
@@ -37,6 +28,7 @@ import software.amazon.awscdk.services.rds.DatabaseInstanceEngine;
 import software.amazon.awscdk.services.rds.PostgresEngineVersion;
 import software.amazon.awscdk.services.rds.PostgresInstanceEngineProps;
 import software.amazon.awscdk.services.route53.CfnHealthCheck;
+import software.amazon.awscdk.services.servicediscovery.DnsRecordType;
 
 public class LocalStack extends Stack {
     private final Vpc vpc;
@@ -205,6 +197,10 @@ public class LocalStack extends Stack {
                 .cluster(ecsCluster)
                 .taskDefinition(taskDefinition)
                 .assignPublicIp(false)
+                .cloudMapOptions(CloudMapOptions.builder()
+                        .name(imageName)
+                        .dnsRecordType(DnsRecordType.A)
+                        .build())
                 .serviceName(imageName)
                 .build();
     }
@@ -249,6 +245,11 @@ public class LocalStack extends Stack {
                         .taskDefinition(taskDefinition)
                         .desiredCount(1)
                         .healthCheckGracePeriod(Duration.seconds(60))
+                        .publicLoadBalancer(true)
+                        .cloudMapOptions(CloudMapOptions.builder()
+                                .name("api-gateway")
+                                .dnsRecordType(DnsRecordType.A)
+                                .build())
                         .build();
     }
 
