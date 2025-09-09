@@ -118,7 +118,9 @@ public class LocalStack extends Stack {
                 null,
                 null
         );
+        createGrafanaService();
     }
+
 
     private Vpc createVpc(){
         return Vpc.Builder
@@ -320,6 +322,31 @@ public class LocalStack extends Stack {
                 .cacheSubnetGroupName(redisSubnetGroup.getCacheSubnetGroupName())
                 .vpcSecurityGroupIds(List.of(vpc.getVpcDefaultSecurityGroup()))
                 .build();
+    }
+
+    private ApplicationLoadBalancedFargateService createGrafanaService(){
+        FargateTaskDefinition taskDefinition = FargateTaskDefinition.Builder
+                .create(this, "GrafanaService")
+                .cpu(256)
+                .memoryLimitMiB(512)
+                .build();
+
+        taskDefinition.addContainer("GrafanaContainer", ContainerDefinitionOptions.builder()
+                .image(ContainerImage.fromRegistry("grafana/grafana"))
+                .portMappings(List.of(PortMapping.builder()
+                        .containerPort(3000)
+                        .build()))
+                .build());
+
+        ApplicationLoadBalancedFargateService service = ApplicationLoadBalancedFargateService.Builder
+                .create(this, "GrafanaUIService")
+                .taskDefinition(taskDefinition)
+                .publicLoadBalancer(true)
+                .listenerPort(3000)
+                .desiredCount(1)
+                .build();
+
+        return service;
     }
 
     public static void main(final String[] args) {
