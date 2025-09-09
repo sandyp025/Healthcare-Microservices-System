@@ -349,6 +349,8 @@ public class LocalStack extends Stack {
         return service;
     }
 
+
+
     public static void main(final String[] args) {
         App app = new App(AppProps.builder().outdir("./cdk.out").build());
 
