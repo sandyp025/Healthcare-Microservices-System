@@ -1,4 +1,5 @@
 package com.pm.patientservice.service;
+
 import com.pm.patientservice.dto.PagedPatientResponseDTO;
 import com.pm.patientservice.dto.PatientRequestDTO;
 import com.pm.patientservice.dto.PatientResponseDTO;
@@ -94,7 +95,7 @@ public class PatientService {
         billingServiceGrpcClient.createBillingAccount(newPatient.getId().toString(),
                 newPatient.getName(), newPatient.getEmail());
 
-        //kafkaProducer.sendPatientCreatedEvent(newPatient);
+        kafkaProducer.sendPatientCreatedEvent(newPatient);
 
         return PatientMapper.toDTO(newPatient);
     }
@@ -119,7 +120,7 @@ public class PatientService {
 
         Patient updatedPatient = patientRepository.save(patient);
 
-        //kafkaProducer.sendPatientUpdatedEvent(updatedPatient);
+        kafkaProducer.sendPatientUpdatedEvent(updatedPatient);
 
         return PatientMapper.toDTO(updatedPatient);
     }
