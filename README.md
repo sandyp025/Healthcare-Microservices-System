@@ -1,3 +1,7 @@
+Here’s the complete, long-form README you asked for. It preserves everything from your original README, folds in the new Appointment CQRS work (entities, Kafka listener, cached projections, DTO enrichment), keeps all screenshots (including `testing1…testing4`), uses the `.env` / `.env.example` pattern, and documents both manual `docker run` steps and the open-source `docker-compose.yml` flow.
+
+---
+
 # Healthcare Microservices System
 
 ![Microservices Architecture](https://img.shields.io/badge/Architecture-Microservices-blue)
@@ -12,123 +16,1081 @@
 ![LocalStack](https://img.shields.io/badge/LocalStack-AWS%20Emulation-purple)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
+A comprehensive healthcare management platform built on Spring Boot microservices with CQRS in the Appointment domain, event-driven communication using Kafka, gRPC billing, Redis caching, and full observability with Prometheus and Grafana. The stack is containerized and environment-driven via `.env`, and ships with a `docker-compose.yml` for one-command local deployments. Manual `docker run` steps are documented for parity with local development workflows.
+
+---
+
 ## System Architecture Overview
 
-![System Architecture](screenshots/img.png)
+![System Architecture](screenshots/img1.png)
+##### Link for the image- (https://www.mermaidchart.com/app/projects/a8cc172d-2b60-466b-9f76-1fd0b82ffc5e/diagrams/f4dd8a17-1cb6-447d-8d3f-8c188a9e7c77/version/v0.1/edit)
 
-A comprehensive healthcare management system built with modern microservices architecture, featuring patient management, billing, analytics, and authentication services with full observability, caching, resilience patterns, and AWS cloud integration.
+The system is decomposed into independently deployable services:
+
+* Patient Service (CRUD + Kafka producer + Redis)
+* Appointment Service (CQRS with cached patient projection + Kafka consumer)
+* Auth Service (JWT issuance/validation + RBAC)
+* Billing Service (gRPC server + event integration)
+* Analytics Service (Kafka consumer)
+* API Gateway (routing + JWT validation + rate limiting)
+* Infrastructure: Kafka, Redis, PostgreSQL databases, Prometheus, Grafana, LocalStack
+
+---
 
 ## Table of Contents
 
 * [Core Features](#core-features)
 * [Container Ecosystem](#container-ecosystem)
 * [Service Architecture](#service-architecture)
-* [API Management & Pagination](#api-management--pagination)
+
+    * [Patient Service](#patient-service)
+    * [Appointment Service](#appointment-service)
+    * [Auth Service](#auth-service)
+    * [Billing Service](#billing-service)
+    * [Analytics Service](#analytics-service)
+    * [API Gateway](#api-gateway)
+* [CQRS in Appointment Service](#cqrs-in-appointment-service)
+
+    * [Entities](#entities)
+    * [Event Flow](#event-flow)
+    * [DTO Enrichment](#dto-enrichment)
+    * [Screenshots](#screenshots)
+* [API Workflows](#api-workflows)
 * [Caching Strategy](#caching-strategy)
 * [Rate Limiting & Security](#rate-limiting--security)
 * [Resilience Patterns](#resilience-patterns)
 * [Event-Driven Architecture](#event-driven-architecture)
+
+    * [Topics](#topics)
+    * [Message Contracts](#message-contracts)
+    * [Consumer Groups and Offset Management](#consumer-groups-and-offset-management)
 * [Observability & Monitoring](#observability--monitoring)
+
+    * [Prometheus](#prometheus)
+    * [Grafana](#grafana)
+    * [Actuator Endpoints](#actuator-endpoints)
 * [Service Discovery & Cloud](#service-discovery--cloud)
 * [API Testing](#api-testing)
 * [Docker Deployment](#docker-deployment)
+
+    * [Quick Start with Compose](#quick-start-with-compose)
+    * [Compose Services Overview](#compose-services-overview)
+* [Manual Docker Run Steps](#manual-docker-run-steps)
+
+    * [Databases](#databases)
+    * [Infrastructure](#infrastructure)
+    * [Application Services](#application-services)
 * [Infrastructure & Configuration](#infrastructure--configuration)
+
+    * [Technology Stack](#technology-stack)
+    * [Directory Layout](#directory-layout)
+    * [Configuration Matrix](#configuration-matrix)
 * [Getting Started](#getting-started)
-* [Detailed Setup Instructions](#detailed-setup-instructions)
-  * [Billing Service Setup](#billing-service-setup)
-  * [Patient Service Setup](#patient-service-setup)
-  * [Notification Service Setup](#notification-service-setup)
-  * [Auth Service Setup](#auth-service-setup)
-  * [Auth Service DB Setup](#auth-service-db-setup)
+* [Testing the System](#testing-the-system)
+* [Environment Variables](#environment-variables)
+
+    * [.env.example](#envexample)
+    * [Secrets Policy](#secrets-policy)
+* [Service-Specific Setup](#service-specific-setup)
+
+    * [Billing Service gRPC Setup](#billing-service-grpc-setup)
+    * [Patient Service gRPC + Kafka Setup](#patient-service-grpc--kafka-setup)
+    * [Appointment Service Kafka Listener](#appointment-service-kafka-listener)
+    * [Auth Service Dependencies](#auth-service-dependencies)
+* [Data Model](#data-model)
+
+    * [DDL Snippets](#ddl-snippets)
+* [API Reference](#api-reference)
+
+    * [Patient Service REST](#patient-service-rest)
+    * [Appointment Service REST](#appointment-service-rest)
+    * [Auth Service REST](#auth-service-rest)
+    * [Billing Service gRPC](#billing-service-grpc)
+* [Error Handling & Problem Details](#error-handling--problem-details)
+* [Pagination & Sorting Standard](#pagination--sorting-standard)
+* [Logging & Tracing](#logging--tracing)
+* [Performance Tuning](#performance-tuning)
+* [Backup & Restore](#backup--restore)
+* [Migrations](#migrations)
+* [Troubleshooting](#troubleshooting)
+* [CI/CD and Versioning](#cicd-and-versioning)
+* [Contribution Guide](#contribution-guide)
+* [Roadmap](#roadmap)
+* [License](#license)
+
+---
 
 ## Core Features
 
-* **Microservices Architecture** with Spring Boot 3.2+
-* **Advanced Pagination & Sorting** with query parameters
-* **Redis Caching** with cache-miss metrics
-* **Rate Limiting** at API Gateway level
-* **Circuit Breakers** with fallback mechanisms
-* **Event-Driven Architecture** with Apache Kafka
-* **Comprehensive Observability** with Prometheus & Grafana
-* **Service Discovery** using AWS Cloud Map
-* **Container Orchestration** with Docker
-* **JWT Authentication** with role-based access control
-* **Infrastructure as Code** with AWS CDK
-* **Production Deployment** with automated CI/CD
+* Microservices with Spring Boot 3.2+
+* CQRS in the Appointment Service: write model (`appointment`), read model (`cached_patient`), projection updated via Kafka consumer
+* Redis caching and read-through access
+* Kafka for event-driven workflows and service decoupling
+* gRPC (Billing Service) with Protobuf contracts and low-latency calls
+* API Gateway with JWT authentication and rate limiting
+* Circuit breakers and retries for resilience
+* Prometheus & Grafana for metrics, dashboards, and alerting
+* LocalStack for AWS service emulation
+* `.env` / `.env.example` driven configuration and `docker-compose.yml` for one-command spin-up
+
+---
 
 ## Container Ecosystem
 
-![Docker Containers](https://img.shields.io/badge/Containers-7%20Running-success)
+![Docker Containers](screenshots/docker1.png)
 
-![Docker Containers](screenshots/docker.png)
+| Service                | Port(s)     | Technology                   |
+| ---------------------- | ----------- | ---------------------------- |
+| patient-service        | 4000        | Spring Boot + JPA + Kafka    |
+| appointment-service    | 4006        | Spring Boot + CQRS + Kafka   |
+| analytics-service      | 4002        | Spring Boot + Kafka consumer |
+| api-gateway            | 4004        | Spring Cloud Gateway         |
+| auth-service           | 4005        | Spring Security + JWT        |
+| billing-service        | 9001 (gRPC) | gRPC Server + Kafka          |
+| redis                  | 6379        | Redis 7                      |
+| kafka                  | 9092, 9094  | Bitnami Kafka (KRaft)        |
+| prometheus             | 9090        | Prometheus                   |
+| grafana                | 3000        | Grafana                      |
+| localstack (optional)  | 4566, 443   | Local AWS emulator           |
+| postgres (per service) | 5432        | PostgreSQL 15                |
 
-| Service               | Port      | Technology        |
-| --------------------- | --------- | ----------------- |
-| **Patient Service**   | 4000      | Spring Boot + JPA |
-| **Analytics Service** | 4002      | Kafka Consumer    |
-| **API Gateway**       | 4004      | Spring Cloud      |
-| **Auth Service**      | 4005      | JWT + Security    |
-| **Billing Service**   | gRPC:9005 | gRPC Server       |
-| **LocalStack**        | 4566/443  | AWS Emulation     |
-| **Redis**             | 6379      | Caching Layer     |
-| **Kafka**             | 9092      | Message Broker    |
-| **Prometheus**        | 9090      | Metrics Collection|
-| **Grafana**           | 3000      | Monitoring UI     |
+---
 
 ## Service Architecture
 
-### 1. Patient Service (Port: 4000)
-**Core healthcare data management with advanced features**
+### Patient Service
 
-* **Advanced Pagination**: Query parameters for filtering, sorting, and pagination
-* **Redis Caching**: Read-through caching with cache-miss metrics
-* **gRPC Integration**: Communicates with Billing Service for account creation
-* **Event Publishing**: Kafka producer for patient lifecycle events
-* **Circuit Breaker**: Resilience patterns for downstream service calls
-* **Database**: PostgreSQL with JPA/Hibernate ORM
-* **Metrics**: Custom metrics for cache performance and API usage
+* CRUD for patients
+* Publishes domain events: `patient.created`, `patient.updated`
+* Kafka producer configuration
+* gRPC client to billing-service for account provisioning
+* PostgreSQL database
+* Redis for caching
+* Exposes Actuator health, metrics
 
-### 2. API Gateway (Port: 4004)
-**Centralized request routing and security**
+### Appointment Service
 
-* **Rate Limiting**: Configurable rate limits per endpoint
-* **JWT Validation**: Centralized authentication filter
-* **Request Routing**: Load balancing and service discovery
-* **Security Policies**: CORS, request validation, and security headers
+* CQRS implementation
+* PostgreSQL with `appointment` and `cached_patient`
+* Kafka listener updates projections from patient events
+* Enriched DTOs combining appointment + cached patient
+* Validation and exception handling with problem details
 
-### 3. Auth Service (Port: 4005)
-**Authentication and authorization**
+### Auth Service
 
-* **JWT Token Management**: Secure token generation and validation
-* **Role-Based Access**: ADMIN/USER role management
-* **Password Security**: BCrypt hashing
-* **User Management**: Registration and profile management
+* JWT token issuance and validation
+* BCrypt hashing
+* Roles: ADMIN, USER
+* PostgreSQL persistence
+* springdoc OpenAPI enabled (UI optional)
 
-### 4. Billing Service (gRPC Port: 9005)
-**High-performance billing operations**
+### Billing Service
 
-* **gRPC Protocol**: Binary protocol for low-latency communication
-* **Circuit Breaker**: Fallback mechanisms for service resilience
-* **Event Consumption**: Kafka consumer for billing account events
-* **Protocol Buffers**: Efficient serialization
+* gRPC microservice
+* Protobuf contracts for account creation and billing events
+* Kafka consumer/producer where applicable
+* Timeouts and retries
 
-### 5. Analytics Service (Port: 4002)
-**Real-time event processing**
+### Analytics Service
 
-* **Kafka Consumer**: Processes patient lifecycle events
-* **Event Analytics**: Real-time data processing and insights
-* **Scalable Architecture**: Event-driven processing pipeline
+* Kafka consumer for patient lifecycle events
+* Real-time processing pipeline placeholder for sinks and storage
 
-## API Management & Pagination
+### API Gateway
 
-![Postman Testing](screenshots/postman2.png)
+* Central routing
+* JWT validation
+* Rate limiting and standard response headers
+* CORS policies
 
-**Advanced Query Parameters:**
-```http
-GET /api/patients?page=0&size=10&sort=name,asc&email=john@example.com
+---
+
+## CQRS in Appointment Service
+
+The Appointment Service separates writes and reads:
+
+* Write model: store appointments with minimal coupling
+* Read model: projection table `cached_patient` updated by a Kafka listener
+* Queries join `appointment` with `cached_patient` to produce enriched responses without synchronous cross-service calls
+
+### Entities
+
+* `Appointment`: id, patientId, startTime, endTime, notes, status
+* `CachedPatient`: patientId, name, email, phone, address, updatedAt
+
+### Event Flow
+
+1. Patient created or updated in Patient Service
+2. Event published to Kafka (`patient.created` or `patient.updated`)
+3. Appointment Service Kafka listener consumes event
+4. Projection (`cached_patient`) upserted
+5. GET endpoints on Appointment Service fetch enriched DTOs directly from local DB
+
+### DTO Enrichment
+
+Responses include both appointment details and the latest cached patient fields, avoiding N+1 calls or tight coupling.
+
+### Screenshots
+
+* Get Appointments (CQRS read model):
+  ![Get Appointments](screenshots/testing1.png)
+
+* Update Patient → event → projection updated:
+  ![Update Patient](screenshots/testing2.png)
+
+* Kafka Topics:
+  ![Kafka Topics](screenshots/testing3.png)
+
+* Cached Patient table + logs:
+* updated name and email again = hello from patient service 1
+  ![Cached Patient Table](screenshots/testing4.png)
+
+---
+
+## API Workflows
+
+* Patients: CRUD via Patient Service or API Gateway
+* Appointments: create/update/list enriched with cached patient data
+* Auth: login to receive JWT; include `Authorization: Bearer <token>` for protected endpoints
+* Billing: gRPC call from Patient Service on patient creation
+* Analytics: consumes patient events for insights
+
+---
+
+## Caching Strategy
+
+* Redis for caching frequently accessed data
+* Read-through strategy: first miss populates cache
+* Eviction on patient update events using topic subscription
+* Prometheus counters for hit/miss by cache name and key pattern
+
+---
+
+## Rate Limiting & Security
+
+* API Gateway enforces token validation and per-endpoint quotas
+* Role-based access in Auth Service
+* BCrypt password hashing, salted
+* CORS configuration for dev clients
+* Security headers: HSTS, X-Content-Type-Options, X-XSS-Protection where applicable
+
+---
+
+## Resilience Patterns
+
+* Circuit breakers around gRPC calls and downstream integrations
+* Retry policies for transient Kafka failures
+* Timeouts and bulkheads to avoid cascade failures
+* Dead letter handling for poisoned messages (pattern described below)
+
+---
+
+## Event-Driven Architecture
+
+### Topics
+
+* `patient.created`
+* `patient.updated`
+* `billing-account`
+
+### Message Contracts
+
+Example `patient.updated` message:
+
+```json
+{
+  "eventId": "d94a4b4c-5ca6-4e76-8d5a-9b2b705a5a30",
+  "type": "patient.updated",
+  "occurredAt": "2025-09-10T11:22:33Z",
+  "data": {
+    "patientId": "f0a8c1f7-4e92-4205-88f8-3f0497bb1c2a",
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "+1-555-0102",
+    "address": "123 Main St",
+    "attributes": {
+      "gender": "M",
+      "dob": "1990-01-01"
+    }
+  }
+}
 ```
 
-**Standardized Response Format:**
+If you later adopt a Schema Registry, capture compatible evolution rules here (backward compatible changes to `data`).
+
+### Consumer Groups and Offset Management
+
+* Appointment Service runs in consumer group `appointments-cg`
+* Auto offset commit with at-least-once processing
+* For idempotent upsert on `cached_patient`, use unique constraint on patientId
+
+---
+
+## Observability & Monitoring
+
+### Prometheus
+
+![Prometheus UI](screenshots/prometheus-ui.png)
+
+* Scrapes Spring Boot Actuator `/actuator/prometheus`
+* Collects JVM, HTTP, DB pool, cache, and Kafka client metrics
+* Prometheus configuration is bind-mounted from the repo
+
+### Grafana
+
+* Default Spring dashboards: JVM, HTTP latency, throughput, DB connections
+  ![Grafana Default](screenshots/grafana-default.png)
+* Custom dashboards: cache hit/miss, CQRS latency, consumer lag
+  ![Grafana Custom](screenshots/grafana-custom1.png)
+
+### Actuator Endpoints
+
+* `/actuator/health`
+* `/actuator/metrics`
+* `/actuator/prometheus`
+* `/actuator/info`
+* Sensitive endpoints can be toggled in properties per service
+
+---
+
+## Service Discovery & Cloud
+
+Local development uses Docker’s internal network for discovery. For cloud environments, consider:
+
+* AWS Cloud Map for service naming
+* Elastic Load Balancing and Service Mesh options
+* MSK for managed Kafka
+* RDS for managed Postgres
+* ElastiCache for managed Redis
+* The repo includes LocalStack to emulate AWS components locally (optional)
+  ![LocalStack Dashboard](screenshots/localstack.png)
+
+---
+
+## API Testing
+
+Postman collections cover:
+
+* Patient CRUD
+* Appointment lifecycle
+* Auth flows (login, token validation)
+* Event-driven scenarios
+
+![Postman Example](screenshots/postman.png)
+
+---
+
+## Docker Deployment
+
+### Quick Start with Compose
+
+1. Create `.env` from the template:
+
+```bash
+cp .env.example .env
+```
+
+2. Build all services:
+
+```bash
+mvn clean package -DskipTests
+```
+
+3. Start the entire stack:
+
+```bash
+docker compose up -d
+```
+
+4. Verify health:
+
+```bash
+curl http://localhost:4000/actuator/health
+curl http://localhost:4006/actuator/health
+curl http://localhost:4005/actuator/health
+```
+
+### Compose Services Overview
+
+* `docker-compose.yml` lives at the repo root
+* All sensitive values and ports are read from `.env`
+* Volumes persist Postgres data under `./databases/*`
+* Prometheus loads configuration from `./monitoring/prometheus.yml` (bind mount)
+
+---
+
+## Manual Docker Run Steps
+
+If you prefer granular control or need to mirror your IntelliJ Docker configurations, use these commands. They assume the `.env` values shown later and the default internal network name `internal`.
+
+### Databases
+
+Patient DB:
+
+```bash
+docker run -d \
+  --name patient-service-db \
+  --network internal \
+  -p 5001:5432 \
+  -v ./databases/patient-service-db:/var/lib/postgresql/data \
+  -e POSTGRES_USER=admin_user \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=db \
+  postgres:latest
+```
+
+Appointment DB:
+
+```bash
+docker run -d \
+  --name appointment-service-db \
+  --network internal \
+  -p 5004:5432 \
+  -v ./databases/appointment-service-db:/var/lib/postgresql/data \
+  -e POSTGRES_USER=admin_user \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=db \
+  postgres:latest
+```
+
+Auth DB:
+
+```bash
+docker run -d \
+  --name auth-service-db \
+  --network internal \
+  -p 5002:5432 \
+  -v ./databases/auth-service-db:/var/lib/postgresql/data \
+  -e POSTGRES_USER=admin_user \
+  -e POSTGRES_PASSWORD=password \
+  -e POSTGRES_DB=db \
+  postgres:latest
+```
+
+### Infrastructure
+
+Redis:
+
+```bash
+docker run -d \
+  --name redis \
+  --network internal \
+  -p 6379:6379 \
+  redis:latest
+```
+
+Kafka:
+
+```bash
+docker run -d \
+  --name kafka \
+  --network internal \
+  -p 9092:9092 -p 9094:9094 \
+  -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094 \
+  -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+  -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093 \
+  -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+  -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094 \
+  -e KAFKA_CFG_NODE_ID=0 \
+  -e KAFKA_CFG_PROCESS_ROLES=controller,broker \
+  bitnami/kafka:latest
+```
+
+Prometheus:
+
+```bash
+docker run -d \
+  --name prometheus \
+  --network internal \
+  -p 9090:9090 \
+  -v ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml \
+  prom/prometheus:latest
+```
+
+Grafana:
+
+```bash
+docker run -d \
+  --name grafana \
+  --network internal \
+  -p 3000:3000 \
+  grafana/grafana:latest
+```
+
+LocalStack (optional):
+
+```bash
+docker run -d \
+  --name localstack \
+  --network internal \
+  -p 4566:4566 -p 443:443 \
+  -e SERVICES="s3,sqs,sns,dynamodb,cloudmap,elasticache" \
+  -e DEBUG=1 \
+  localstack/localstack:latest
+```
+
+### Application Services
+
+Build each image first:
+
+```bash
+docker build -t patient-service:latest ./patient-service
+docker build -t appointment-service:latest ./appointment-service
+docker build -t auth-service:latest ./auth-service
+docker build -t api-gateway:latest ./api-gateway
+docker build -t billing-service:latest ./billing-service
+docker build -t analytics-service:latest ./analytics-service
+```
+
+Patient Service:
+
+```bash
+docker run -d \
+  --name patient-service \
+  --network internal \
+  -p 4000:4000 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db \
+  -e SPRING_DATASOURCE_USERNAME=admin_user \
+  -e SPRING_DATASOURCE_PASSWORD=password \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+  -e SPRING_CACHE_TYPE=redis \
+  -e SPRING_DATA_REDIS_HOST=redis \
+  -e SPRING_DATA_REDIS_PORT=6379 \
+  -e BILLING_SERVICE_ADDRESS=billing-service \
+  -e BILLING_SERVICE_GRPC_PORT=9001 \
+  patient-service:latest
+```
+
+Appointment Service:
+
+```bash
+docker run -d \
+  --name appointment-service \
+  --network internal \
+  -p 4006:4006 \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://appointment-service-db:5432/db \
+  -e SPRING_DATASOURCE_USERNAME=admin_user \
+  -e SPRING_DATASOURCE_PASSWORD=password \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+  -e SPRING_SQL_INIT_MODE=always \
+  -e SPRING_CACHE_TYPE=redis \
+  -e SPRING_DATA_REDIS_HOST=redis \
+  -e SPRING_DATA_REDIS_PORT=6379 \
+  appointment-service:latest
+```
+
+Auth Service:
+
+```bash
+docker run -d \
+  --name auth-service \
+  --network internal \
+  -p 4005:4005 \
+  -e JWT_SECRET=replace-me-secret \
+  -e SPRING_DATASOURCE_URL=jdbc:postgresql://auth-service-db:5432/db \
+  -e SPRING_DATASOURCE_USERNAME=admin_user \
+  -e SPRING_DATASOURCE_PASSWORD=password \
+  -e SPRING_JPA_HIBERNATE_DDL_AUTO=update \
+  -e SPRING_SQL_INIT_MODE=always \
+  auth-service:latest
+```
+
+API Gateway:
+
+```bash
+docker run -d \
+  --name api-gateway \
+  --network internal \
+  -p 4004:4004 \
+  -e AUTH_SERVICE_URL=http://auth-service:4005 \
+  api-gateway:latest
+```
+
+Billing Service:
+
+```bash
+docker run -d \
+  --name billing-service \
+  --network internal \
+  -p 4001:4001 -p 9001:9001 \
+  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+  billing-service:latest
+```
+
+Analytics Service:
+
+```bash
+docker run -d \
+  --name analytics-service \
+  --network internal \
+  -p 4002:4002 \
+  -e SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+  analytics-service:latest
+```
+
+---
+
+## Infrastructure & Configuration
+
+### Technology Stack
+
+* Java 17
+* Spring Boot 3.2+
+* PostgreSQL 15
+* Redis 7
+* Kafka 3.4 (Bitnami KRaft single node)
+* Prometheus + Grafana
+* Docker / Docker Compose
+* LocalStack (optional)
+
+### Directory Layout
+
+```
+patient-management/
+├─ api-gateway/
+├─ patient-service/
+├─ appointment-service/
+├─ billing-service/
+├─ analytics-service/
+├─ auth-service/
+├─ monitoring/
+│  └─ prometheus.yml
+├─ databases/
+│  ├─ patient-service-db/
+│  ├─ appointment-service-db/
+│  └─ auth-service-db/
+├─ screenshots/
+│  ├─ img.png
+│  ├─ docker.png
+│  ├─ prometheus-ui.png
+│  ├─ grafana-default.png
+│  ├─ grafana-custom1.png
+│  ├─ postman.png
+│  ├─ localstack.png
+│  ├─ testing1.png
+│  ├─ testing2.png
+│  ├─ testing3.png
+│  └─ testing4.png
+├─ docker-compose.yml
+├─ .env.example
+└─ README.md
+```
+
+### Configuration Matrix
+
+| Area       | Key                                                                                                                                                | Source |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| Ports      | `PATIENT_SERVICE_PORT`, `AUTH_SERVICE_PORT`, `APPOINTMENT_SERVICE_PORT`, `ANALYTICS_SERVICE_PORT`, `BILLING_SERVICE_GRPC_PORT`, `API_GATEWAY_PORT` | `.env` |
+| Kafka      | `KAFKA_CFG_*`, `SPRING_KAFKA_BOOTSTRAP_SERVERS`                                                                                                    | `.env` |
+| Redis      | `REDIS_HOST`, `REDIS_PORT`, `SPRING_CACHE_TYPE`                                                                                                    | `.env` |
+| DBs        | Postgres creds and URLs per service                                                                                                                | `.env` |
+| Auth       | `JWT_SECRET`                                                                                                                                       | `.env` |
+| Prometheus | `PROMETHEUS_CONFIG_LOCAL`, `PROMETHEUS_CONFIG_CONTAINER`                                                                                           | `.env` |
+
+---
+
+## Getting Started
+
+```bash
+git clone <repo-url>
+cd patient-management
+cp .env.example .env
+mvn clean package -DskipTests
+docker compose up -d
+```
+
+Check health:
+
+```bash
+curl http://localhost:4000/actuator/health
+curl http://localhost:4006/actuator/health
+curl http://localhost:4005/actuator/health
+```
+
+---
+
+## Testing the System
+
+1. Authenticate
+2. Create Patient (emits `patient.created`)
+3. Update Patient (emits `patient.updated`)
+4. Create Appointment → read model enriches DTO from `cached_patient`
+
+---
+
+## Environment Variables
+
+Centralized in `.env`, not committed. `.env.example` provides safe placeholders.
+
+### .env.example
+
+```bash
+# -------------------------
+# Network
+# -------------------------
+DOCKER_NETWORK=internal
+
+# -------------------------
+# Global JVM (optional)
+# -------------------------
+JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+
+# -------------------------
+# Ports
+# -------------------------
+PATIENT_SERVICE_PORT=4000
+APPOINTMENT_SERVICE_PORT=4006
+ANALYTICS_SERVICE_PORT=4002
+API_GATEWAY_PORT=4004
+AUTH_SERVICE_PORT=4005
+BILLING_SERVICE_HTTP_PORT=4001
+BILLING_SERVICE_GRPC_PORT=9001
+GRAFANA_PORT=3000
+PROMETHEUS_PORT=9090
+REDIS_PORT=6379
+
+# -------------------------
+# Redis
+# -------------------------
+REDIS_HOST=redis
+SPRING_CACHE_TYPE=redis
+
+# -------------------------
+# Kafka (Bitnami single node KRaft)
+# -------------------------
+SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
+KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+KAFKA_CFG_NODE_ID=0
+KAFKA_CFG_PROCESS_ROLES=controller,broker
+
+# -------------------------
+# Postgres (per-service DBs)
+# -------------------------
+POSTGRES_USER=admin_user
+POSTGRES_PASSWORD=password
+POSTGRES_DB=db
+
+# Patient DB URL (used by patient-service)
+PATIENT_DB_URL=jdbc:postgresql://patient-service-db:5432/db
+PATIENT_DB_USER=admin_user
+PATIENT_DB_PASSWORD=password
+
+# Appointment DB URL (used by appointment-service inline)
+# jdbc:postgresql://appointment-service-db:5432/db
+
+# Auth DB URL (used by auth-service inline)
+# jdbc:postgresql://auth-service-db:5432/db
+
+# -------------------------
+# Auth
+# -------------------------
+JWT_SECRET=replace-me-secret
+
+# -------------------------
+# Inter-service addresses
+# -------------------------
+BILLING_SERVICE_ADDRESS=billing-service
+
+# -------------------------
+# Prometheus bind mount
+# -------------------------
+PROMETHEUS_CONFIG_LOCAL=./monitoring/prometheus.yml
+PROMETHEUS_CONFIG_CONTAINER=/etc/prometheus/prometheus.yml
+```
+
+### Secrets Policy
+
+* Never commit `.env`
+* Commit `.env.example`
+* Rotate JWT secrets and DB passwords before any public demo
+* Prefer Docker secrets / cloud secret managers in production
+
+---
+
+## Service-Specific Setup
+
+### Billing Service gRPC Setup
+
+Add to `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>io.grpc</groupId>
+  <artifactId>grpc-netty-shaded</artifactId>
+  <version>1.69.0</version>
+</dependency>
+<dependency>
+  <groupId>io.grpc</groupId>
+  <artifactId>grpc-protobuf</artifactId>
+  <version>1.69.0</version>
+</dependency>
+<dependency>
+  <groupId>io.grpc</groupId>
+  <artifactId>grpc-stub</artifactId>
+  <version>1.69.0</version>
+</dependency>
+<dependency>
+  <groupId>org.apache.tomcat</groupId>
+  <artifactId>annotations-api</artifactId>
+  <version>6.0.53</version>
+  <scope>provided</scope>
+</dependency>
+<dependency>
+  <groupId>com.google.protobuf</groupId>
+  <artifactId>protobuf-java</artifactId>
+  <version>4.29.1</version>
+</dependency>
+```
+
+Protobuf plugin:
+
+```xml
+<plugin>
+  <groupId>org.xolstice.maven.plugins</groupId>
+  <artifactId>protobuf-maven-plugin</artifactId>
+  <version>0.6.1</version>
+  <configuration>
+    <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
+    <pluginId>grpc-java</pluginId>
+    <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
+  </configuration>
+  <executions>
+    <execution>
+      <goals>
+        <goal>compile</goal>
+        <goal>compile-custom</goal>
+      </goals>
+    </execution>
+  </executions>
+</plugin>
+```
+
+### Patient Service gRPC + Kafka Setup
+
+Same gRPC dependencies as above plus Kafka:
+
+```xml
+<dependency>
+  <groupId>org.springframework.kafka</groupId>
+  <artifactId>spring-kafka</artifactId>
+  <version>3.3.0</version>
+</dependency>
+```
+
+Consumer config (when applicable):
+
+```properties
+spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
+spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer
+```
+
+### Appointment Service Kafka Listener
+
+* Subscribes to `patient.created`, `patient.updated`
+* Upserts `cached_patient` by `patientId`
+* Idempotent logic to support at-least-once delivery
+
+### Auth Service Dependencies
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-api</artifactId>
+  <version>0.12.6</version>
+</dependency>
+<dependency>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-impl</artifactId>
+  <version>0.12.6</version>
+  <scope>runtime</scope>
+</dependency>
+<dependency>
+  <groupId>io.jsonwebtoken</groupId>
+  <artifactId>jjwt-jackson</artifactId>
+  <version>0.12.6</version>
+  <scope>runtime</scope>
+</dependency>
+<dependency>
+  <groupId>org.postgresql</groupId>
+  <artifactId>postgresql</artifactId>
+  <scope>runtime</scope>
+</dependency>
+<dependency>
+  <groupId>org.springdoc</groupId>
+  <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+  <version>2.6.0</version>
+</dependency>
+```
+
+---
+
+## Data Model
+
+### DDL Snippets
+
+`appointment`:
+
+```sql
+CREATE TABLE IF NOT EXISTS appointment (
+  id UUID PRIMARY KEY,
+  patient_id UUID NOT NULL,
+  start_time TIMESTAMP NOT NULL,
+  end_time TIMESTAMP NOT NULL,
+  notes TEXT,
+  status VARCHAR(32) NOT NULL DEFAULT 'SCHEDULED',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_appointment_patient_id ON appointment(patient_id);
+```
+
+`cached_patient`:
+
+```sql
+CREATE TABLE IF NOT EXISTS cached_patient (
+  patient_id UUID PRIMARY KEY,
+  name VARCHAR(255),
+  email VARCHAR(255),
+  phone VARCHAR(64),
+  address VARCHAR(255),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+```
+
+`users` (Auth Service):
+
+```sql
+CREATE TABLE IF NOT EXISTS "users" (
+  id UUID PRIMARY KEY,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL
+);
+```
+
+---
+
+## API Reference
+
+### Patient Service REST
+
+```
+GET    /patients
+GET    /patients/{id}
+POST   /patients
+PUT    /patients/{id}
+DELETE /patients/{id}
+```
+
+Query parameters support pagination: `page`, `size`, `sort=name,asc`.
+
+Sample create:
+
+```http
+POST /patients
+Content-Type: application/json
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "address": "123 Main St",
+  "dateOfBirth": "1990-01-01"
+}
+```
+
+### Appointment Service REST
+
+```
+GET    /appointments?from=2025-05-20T00:00:00&to=2025-05-25T23:59:59
+GET    /appointments/{id}
+POST   /appointments
+PUT    /appointments/{id}
+DELETE /appointments/{id}
+```
+
+Returns enriched DTOs with cached patient info.
+
+### Auth Service REST
+
+```
+POST /auth/login
+POST /auth/register
+GET  /auth/me
+```
+
+Include `Authorization: Bearer <token>` in protected routes.
+
+### Billing Service gRPC
+
+`billing.proto` (illustrative):
+
+```proto
+syntax = "proto3";
+
+package billing;
+
+message CreateAccountRequest {
+  string patientId = 1;
+  string email = 2;
+  string name = 3;
+}
+
+message CreateAccountResponse {
+  string accountId = 1;
+  string status = 2; // CREATED, EXISTS
+}
+
+service BillingService {
+  rpc CreateAccount(CreateAccountRequest) returns (CreateAccountResponse);
+}
+```
+
+---
+
+## Error Handling & Problem Details
+
+Standardize on RFC 7807:
+
+```json
+{
+  "type": "https://example.com/errors/validation",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "name must not be blank",
+  "instance": "/appointments"
+}
+```
+
+---
+
+## Pagination & Sorting Standard
+
+Requests:
+
+```
+GET /patients?page=0&size=10&sort=name,asc
+```
+
+Responses:
+
 ```json
 {
   "content": [...],
@@ -142,356 +1104,149 @@ GET /api/patients?page=0&size=10&sort=name,asc&email=john@example.com
 }
 ```
 
-## Caching Strategy
+---
 
-**Redis Integration with Spring Boot:**
-* **Read-Through Caching**: Automatic cache population on cache misses
-* **Cache-Miss Metrics**: Custom metrics for cache performance monitoring
-* **Configurable TTL**: Environment-specific cache expiration
-* **Cache Eviction**: Automatic cache invalidation on data updates
+## Logging & Tracing
 
-## Rate Limiting & Security
+* JSON logging recommended in production
+* Correlate requests with trace IDs via filters
+* Log key events: patient updated, event published, projection updated
 
-**API Gateway Protection:**
-* **Per-Endpoint Limits**: Configurable rate limits based on API patterns
-* **JWT Validation**: Centralized token validation across all services
-* **Request Throttling**: Prevents API abuse and ensures fair usage
-* **Security Headers**: CORS, Content Security Policy, and other security measures
+---
 
-## Resilience Patterns
+## Performance Tuning
 
-**Circuit Breaker Implementation:**
-* **Fallback Mechanisms**: Graceful degradation when services are unavailable
-* **Timeout Configuration**: Prevents cascading failures
-* **Health Monitoring**: Automatic service health detection
-* **Recovery Strategies**: Automatic circuit breaker reset on service recovery
+* JVM: set heap via `JAVA_TOOL_OPTIONS`
+* DB: indexes on foreign keys and query filters
+* Kafka: tune batch sizes, linger.ms for producers
+* Redis: set TTL for caches; monitor hit/miss
 
-## Event-Driven Architecture
+---
 
-**Kafka Integration:**
-* **Patient Lifecycle Events**: Create, update, delete events
-* **Billing Account Events**: Automated billing account creation
-* **Analytics Processing**: Real-time event processing for insights
-* **Reliable Messaging**: Guaranteed message delivery with acknowledgments
+## Backup & Restore
 
-## Observability & Monitoring
+* Postgres volumes under `./databases/*`
+* Use `pg_dump` for backups
+* Consider point-in-time recovery in production
 
-**Comprehensive monitoring stack with Prometheus and Grafana**
+---
 
-### Prometheus Metrics Collection
+## Migrations
 
-![Prometheus UI](screenshots/prometheus-ui.png)
+* Recommended: Flyway or Liquibase per service
+* Track DDL evolution for `appointment` and `cached_patient`
 
-**Metrics Collected:**
-* **Application Metrics**: JVM, HTTP requests, database connections
-* **Custom Business Metrics**: Cache hit/miss ratios, API response times
-* **Infrastructure Metrics**: Memory usage, CPU utilization, network I/O
-* **Spring Boot Actuator**: Health checks, application info, environment details
+---
 
-### Grafana Dashboards
+## Troubleshooting
 
-#### Default Spring Boot Dashboard
-![Grafana Default Dashboard](screenshots/grafana-default.png)
+* Kafka listener start failure: verify `SPRING_KAFKA_BOOTSTRAP_SERVERS` and container health
+* DB connection refused: ensure `${service}-db` is up and mapped to `:5432`
+* Prometheus targets down: check bind mount `./monitoring/prometheus.yml` → `/etc/prometheus/prometheus.yml`
+* Redis connection errors: confirm `REDIS_HOST=redis`, `REDIS_PORT=6379`, and container is reachable on network
+* JWT validation failed: ensure `JWT_SECRET` matches issuer
 
-**Out-of-the-box monitoring includes:**
-* JVM Memory Usage and Garbage Collection
-* HTTP Request Metrics and Response Times
-* Database Connection Pool Monitoring
-* System Resource Utilization
+Diagnostics:
 
-#### Custom Business Metrics Dashboard
-![Grafana Custom Dashboard](screenshots/grafana-custom1.png)
+```bash
+docker compose ps
+docker compose logs -f kafka
+docker compose logs -f patient-service
+docker exec -it patient-service-db psql -U admin_user -d db -c '\dt'
+```
 
-**Custom metrics tracking:**
-* **Cache Performance**: Cache hit/miss ratios and response times
-* **API Usage Patterns**: Endpoint usage statistics and rate limiting
-* **Circuit Breaker Status**: Service health and fallback activation
-* **Patient Service Metrics**: Custom business logic performance
+---
 
-## Service Discovery & Cloud
+## CI/CD and Versioning
 
-**AWS Cloud Map Integration:**
-* **Service Discovery**: Dynamic service registration and discovery
-* **Load Balancing**: Automatic traffic distribution across healthy instances
-* **Health Checks**: Continuous service health monitoring
-* **DNS-Based Discovery**: Services resolve each other using Cloud Map URLs
+* Suggested: GitHub Actions for build/test
+* Tag releases with semantic versioning
+* Build images and push to a registry per service
 
-**Production Infrastructure:**
-* **Amazon ElastiCache**: Managed Redis service for caching
-* **Amazon MSK**: Managed Kafka service for messaging
-* **AWS ECS**: Container orchestration and scaling
-* **Application Load Balancer**: Traffic routing and SSL termination
-
-## API Testing
-
-### Comprehensive Postman Collection
-
-![Postman Testing Interface](screenshots/postman.png)
-
-**Test Coverage:**
-* **Patient Management**: CRUD operations with validation
-* **Authentication Flow**: Login, token validation, role-based access
-* **Pagination Testing**: Various page sizes and sorting options
-* **Rate Limiting**: Throttling behavior validation
-* **Circuit Breaker**: Fallback mechanism testing
-
-### LocalStack Integration
-
-![LocalStack Dashboard](screenshots/localstack.png)
-
-**AWS Services Emulation:**
-* **S3**: Object storage for file uploads and documents
-* **SQS/SNS**: Message queuing and notifications
-* **DynamoDB**: NoSQL database operations
-* **Cloud Map**: Service discovery simulation
-* **ElastiCache**: Redis caching service emulation
-
-## Docker Deployment
-
-**Complete containerized microservices stack**
-
-### Docker Compose Configuration
+Example GitHub Actions snippet:
 
 ```yaml
-version: '3.8'
-services:
-  patient-service:
-    build: ./patient-service
-    ports: ["4000:4000"]
-    environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://patient-db:5432/patientdb
-      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SPRING_REDIS_HOST=redis
-      - SPRING_REDIS_PORT=6379
-      - BILLING_SERVICE_ADDRESS=billing-service
-      - BILLING_SERVICE_GRPC_PORT=9005
-    depends_on:
-      - patient-db
-      - redis
-      - kafka
-
-  api-gateway:
-    build: ./api-gateway
-    ports: ["4004:4004"]
-    depends_on:
-      - patient-service
-      - auth-service
-
-  auth-service:
-    build: ./auth-service
-    ports: ["4005:4005"]
-    depends_on:
-      - auth-db
-
-  analytics-service:
-    build: ./analytics-service
-    ports: ["4002:4002"]
-    depends_on:
-      - kafka
-
-  billing-service:
-    build: ./billing-service
-    ports: ["9005:9005"]
-    depends_on:
-      - kafka
-
-  # Infrastructure Services
-  redis:
-    image: redis:7-alpine
-    ports: ["6379:6379"]
-    command: redis-server --appendonly yes
-
-  kafka:
-    image: confluentinc/cp-kafka:latest
-    ports: ["9092:9092", "9094:9094"]
-    environment:
-      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
-      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-
-  prometheus:
-    build: ./monitoring
-    ports: ["9090:9090"]
-    volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
-
-  grafana:
-    image: grafana/grafana:latest
-    ports: ["3000:3000"]
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
-
-  localstack:
-    image: localstack/localstack:latest
-    ports: ["4566:4566", "443:443"]
-    environment:
-      - SERVICES=s3,sqs,sns,dynamodb,cloudmap,elasticache
-      - DEBUG=1
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - run: mvn -B -DskipTests clean package
 ```
 
-### Container Health and Management
+---
 
-**Service Dependencies:**
-* Database containers start before application services
-* Infrastructure services (Redis, Kafka) initialize before dependent services
-* Health checks ensure services are ready before routing traffic
-* Graceful shutdown handling for clean container stops
+## Contribution Guide
 
-## Infrastructure & Configuration
+* Use feature branches
+* Write unit and integration tests
+* Follow conventional commits
+* Run `mvn -DskipTests=false test` before PRs
+* Keep README and `.env.example` updated
 
-### Technology Stack
+---
 
-**Core Technologies:**
-* **Java 17+** - Modern Java features and performance improvements
-* **Spring Boot 3.2+** - Enterprise application framework
-* **PostgreSQL 15** - Primary relational database
-* **Redis 7** - In-memory caching and session storage
-* **Apache Kafka 3.4** - Event streaming platform
-* **Docker & Docker Compose** - Containerization platform
-* **Maven 3.6+** - Build automation and dependency management
+## Roadmap
 
-### Environment Configuration
+* Notification Service with templated events
+* Saga orchestration for multi-service workflows
+* Kubernetes Helm charts
+* Schema Registry and contract testing for Kafka
+* OpenTelemetry tracing
 
-**Patient Service Environment:**
+---
+
+## License
+
+MIT `LICENSE`.
+
+---
+
+## Docker Compose Setup (Reference)
+
+The `docker-compose.yml` is committed at the repository root and reads configuration from `.env`. Typical workflow:
+
 ```bash
-# Database Configuration
-SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db
-SPRING_DATASOURCE_USERNAME=admin_user
-SPRING_DATASOURCE_PASSWORD=password
-SPRING_JPA_HIBERNATE_DDL_AUTO=update
-
-# Messaging Configuration
-SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-
-# Caching Configuration
-SPRING_REDIS_HOST=redis
-SPRING_REDIS_PORT=6379
-
-# Service Communication
-BILLING_SERVICE_ADDRESS=billing-service
-BILLING_SERVICE_GRPC_PORT=9005
-
-# Development Tools
-JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+cp .env.example .env
+mvn clean package -DskipTests
+docker compose up -d
 ```
 
-**Kafka Configuration:**
+Shut down:
+
 ```bash
-KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
-KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
-KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT
-KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
-KAFKA_CFG_NODE_ID=0
-KAFKA_CFG_PROCESS_ROLES=controller,broker
+docker compose down
 ```
 
-### Security Configuration
+Reset data:
 
-**Authentication & Authorization:**
-* **JWT Token Management** with configurable expiration
-* **BCrypt Password Hashing** with salt rounds
-* **Role-Based Access Control** (ADMIN/USER)
-* **CORS Configuration** for cross-origin requests
-
-**Database Security:**
-```sql
--- Default admin user setup
-INSERT INTO "users" (id, email, password, role)
-SELECT '223e4567-e89b-12d3-a456-426614174006', 
-       'testuser@test.com',
-       '$2b$12$7hoRZfJrRKD2nIm2vHLs7OBETy.LWenXXMLKf99W8M4PUwO6KB7fu', 
-       'ADMIN'
-WHERE NOT EXISTS (SELECT 1 FROM "users" WHERE email = 'testuser@test.com');
-```
-
-## Getting Started
-
-### Prerequisites
-* **Java 17 or higher**
-* **Docker Desktop** with Docker Compose
-* **Maven 3.6+** for building services
-* **Git** for version control
-* **Postman** (optional) for API testing
-
-### Quick Start Commands
-
-1. **Clone the Repository:**
-   ```bash
-   git clone <repository-url>
-   cd patient-management
-   ```
-
-2. **Build All Services:**
-   ```bash
-   mvn clean package -DskipTests
-   ```
-
-3. **Start Infrastructure Services:**
-   ```bash
-   docker-compose up -d redis kafka prometheus grafana localstack
-   ```
-
-4. **Start Application Services:**
-   ```bash
-   docker-compose up -d
-   ```
-
-5. **Verify Services:**
-   ```bash
-   # Check service health
-   curl http://localhost:4000/actuator/health
-   curl http://localhost:4004/actuator/health
-   curl http://localhost:4005/actuator/health
-   ```
-
-6. **Access Monitoring:**
-   * **Grafana Dashboard:** http://localhost:3000 (admin/admin)
-   * **Prometheus UI:** http://localhost:9090
-   * **LocalStack Dashboard:** http://localhost:4566
-
-### Testing the System
-
-1. **Authenticate:**
-   ```bash
-   curl -X POST http://localhost:4004/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"testuser@test.com","password":"password123"}'
-   ```
-
-2. **Create Patient:**
-   ```bash
-   curl -X POST http://localhost:4004/api/patients \
-     -H "Authorization: Bearer <token>" \
-     -H "Content-Type: application/json" \
-     -d '{"name":"John Doe","email":"john@example.com","address":"123 Main St","dateOfBirth":"1990-01-01"}'
-   ```
-
-3. **Query with Pagination:**
-   ```bash
-   curl "http://localhost:4004/api/patients?page=0&size=10&sort=name,asc"
-   ```
-
-### Production Deployment
-
-**AWS Infrastructure Setup:**
 ```bash
-# Deploy infrastructure with CDK
-cd infrastructure
-mvn compile exec:java -Dexec.mainClass="com.pm.stack.LocalStack"
-
-# Build and push Docker images
-./build-images.sh
-
-# Deploy services
-./deploy.sh
+docker compose down -v
 ```
 
-**Monitoring Setup:**
-* Prometheus automatically discovers and scrapes service metrics
-* Grafana dashboards are pre-configured for Spring Boot applications
-* Custom business metrics are available for cache performance and API usage
+---
+
+## Host-Specific Notes
+
+If you prefer an absolute macOS bind mount for Prometheus (development only), the following mapping is supported:
+
+```
+/Users/<you>/code/patient-management/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+```
+
+The committed Compose file uses the relative path form:
+
+```
+${PROMETHEUS_CONFIG_LOCAL}:${PROMETHEUS_CONFIG_CONTAINER}
+```
+
+Update `.env` accordingly if you switch between absolute and relative mounts.
 
 ---
 
@@ -501,393 +1256,3 @@ mvn compile exec:java -Dexec.mainClass="com.pm.stack.LocalStack"
 
 ---
 
-## Detailed Setup Instructions
-
-## Environment Variables
-
-```
-JAVA_TOOL_OPTIONS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005;
-SPRING_DATASOURCE_PASSWORD=password;
-SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db;
-SPRING_DATASOURCE_USERNAME=admin_user;
-SPRING_JPA_HIBERNATE_DDL_AUTO=update;
-SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092;
-SPRING_SQL_INIT_MODE=always
-```
-
-## Billing Service Setup
-
-### gRPC Setup
-
-Add the following to the `<dependencies>` section
-```
-<!--GRPC -->
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-netty-shaded</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-protobuf</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-stub</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency> <!-- necessary for Java 9+ -->
-    <groupId>org.apache.tomcat</groupId>
-    <artifactId>annotations-api</artifactId>
-    <version>6.0.53</version>
-    <scope>provided</scope>
-</dependency>
-<dependency>
-    <groupId>net.devh</groupId>
-    <artifactId>grpc-spring-boot-starter</artifactId>
-    <version>3.1.0.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>com.google.protobuf</groupId>
-    <artifactId>protobuf-java</artifactId>
-    <version>4.29.1</version>
-</dependency>
-
-```
-
-Replace the `<build>` section with the following
-
-```
-
-<build>
-    <extensions>
-        <!-- Ensure OS compatibility for protoc -->
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
-    <plugins>
-        <!-- Spring boot / maven  -->
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-
-        <!-- PROTO -->
-        <plugin>
-            <groupId>org.xolstice.maven.plugins</groupId>
-            <artifactId>protobuf-maven-plugin</artifactId>
-            <version>0.6.1</version>
-            <configuration>
-                <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
-                <pluginId>grpc-java</pluginId>
-                <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
-            </configuration>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>compile</goal>
-                        <goal>compile-custom</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-
-```
-
-## Patient Service Setup
-
-### Environment Variables (complete list)
-```bash
-BILLING_SERVICE_ADDRESS=billing-service;
-BILLING_SERVICE_GRPC_PORT=9005;
-JAVA_TOOL_OPTIONS=-agentlib:jdwp\=transport\=dt_socket,server\=y,suspend\=n,address\=*:5005;
-SPRING_DATASOURCE_PASSWORD=password;
-SPRING_DATASOURCE_URL=jdbc:postgresql://patient-service-db:5432/db;
-SPRING_DATASOURCE_USERNAME=admin_user;
-SPRING_JPA_HIBERNATE_DDL_AUTO=update;
-SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092;
-SPRING_SQL_INIT_MODE=always
-```
-
-
-### gRPC Setup
-
-Add the following to the `<dependencies>` section
-```
-<!--GRPC -->
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-netty-shaded</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-protobuf</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency>
-    <groupId>io.grpc</groupId>
-    <artifactId>grpc-stub</artifactId>
-    <version>1.69.0</version>
-</dependency>
-<dependency> <!-- necessary for Java 9+ -->
-    <groupId>org.apache.tomcat</groupId>
-    <artifactId>annotations-api</artifactId>
-    <version>6.0.53</version>
-    <scope>provided</scope>
-</dependency>
-<dependency>
-    <groupId>net.devh</groupId>
-    <artifactId>grpc-spring-boot-starter</artifactId>
-    <version>3.1.0.RELEASE</version>
-</dependency>
-<dependency>
-    <groupId>com.google.protobuf</groupId>
-    <artifactId>protobuf-java</artifactId>
-    <version>4.29.1</version>
-</dependency>
-
-```
-
-Replace the `<build>` section with the following
-
-```
-
-<build>
-    <extensions>
-        <!-- Ensure OS compatibility for protoc -->
-        <extension>
-            <groupId>kr.motd.maven</groupId>
-            <artifactId>os-maven-plugin</artifactId>
-            <version>1.7.0</version>
-        </extension>
-    </extensions>
-    <plugins>
-        <!-- Spring boot / maven  -->
-        <plugin>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-maven-plugin</artifactId>
-        </plugin>
-
-        <!-- PROTO -->
-        <plugin>
-            <groupId>org.xolstice.maven.plugins</groupId>
-            <artifactId>protobuf-maven-plugin</artifactId>
-            <version>0.6.1</version>
-            <configuration>
-                <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
-                <pluginId>grpc-java</pluginId>
-                <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
-            </configuration>
-            <executions>
-                <execution>
-                    <goals>
-                        <goal>compile</goal>
-                        <goal>compile-custom</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
-    </plugins>
-</build>
-
-```
-
-### Kafka Container
-
-Copy/paste this line into the environment variables when running the container in intellij
-```
-KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094;KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER;KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093;KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT,PLAINTEXT:PLAINTEXT;KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094;KAFKA_CFG_NODE_ID=0;KAFKA_CFG_PROCESS_ROLES=controller,broker
-```
-
-### Kafka Producer Setup (Patient Service)
-
-Add the following to `application.properties`
-```
-spring.kafka.consumer.key-deserializer=org.apache.kafka.common.serialization.StringDeserializer
-spring.kafka.consumer.value-deserializer=org.apache.kafka.common.serialization.ByteArrayDeserializer
-```
-
-
-## Notification Service Setup
-
-### Environment Vars
-
-```
-SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-```
-
-### Protobuf/Kafka 
-
-Dependencies (add in addition to whats there)
-
-```
-<dependency>
-    <groupId>org.springframework.kafka</groupId>
-    <artifactId>spring-kafka</artifactId>
-    <version>3.3.0</version>
-</dependency>
-
-<dependency>
-    <groupId>com.google.protobuf</groupId>
-    <artifactId>protobuf-java</artifactId>
-    <version>4.29.1</version>
-</dependency>
-```
-
-Update the build section in pom.xml with the following
-
-```
-    <build>
-        <extensions>
-            <!-- Ensure OS compatibility for protoc -->
-            <extension>
-                <groupId>kr.motd.maven</groupId>
-                <artifactId>os-maven-plugin</artifactId>
-                <version>1.7.0</version>
-            </extension>
-        </extensions>
-        <plugins>
-            <plugin>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-maven-plugin</artifactId>
-            </plugin>
-
-            <plugin>
-                <groupId>org.xolstice.maven.plugins</groupId>
-                <artifactId>protobuf-maven-plugin</artifactId>
-                <version>0.6.1</version>
-                <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:3.25.5:exe:${os.detected.classifier}</protocArtifact>
-                    <pluginId>grpc-java</pluginId>
-                    <pluginArtifact>io.grpc:protoc-gen-grpc-java:1.68.1:exe:${os.detected.classifier}</pluginArtifact>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>compile</goal>
-                            <goal>compile-custom</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
-```
-
-
-## Auth Service Setup {#auth-service-setup}
-
-### Dependencies
-
-Dependencies (add in addition to whats there)
-
-```
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-security</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-jpa</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.6.0</version>
-        </dependency>
-        <dependency>
-          <groupId>com.h2database</groupId>
-          <artifactId>h2</artifactId>
-        </dependency>
-       
-```
-
-### Environment Variables
-
-```
-SPRING_DATASOURCE_PASSWORD=password
-SPRING_DATASOURCE_URL=jdbc:postgresql://auth-service-db:5432/db
-SPRING_DATASOURCE_USERNAME=admin_user
-SPRING_JPA_HIBERNATE_DDL_AUTO=update
-SPRING_SQL_INIT_MODE=always
-```
-
-
-### Data.sql
-
-```sql
--- Ensure the 'users' table exists
-CREATE TABLE IF NOT EXISTS "users" (
-    id UUID PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL
-);
-
--- Insert the user if no existing user with the same id or email exists
-INSERT INTO "users" (id, email, password, role)
-SELECT '223e4567-e89b-12d3-a456-426614174006', 'testuser@test.com',
-       '$2b$12$7hoRZfJrRKD2nIm2vHLs7OBETy.LWenXXMLKf99W8M4PUwO6KB7fu', 'ADMIN'
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM "users"
-    WHERE id = '223e4567-e89b-12d3-a456-426614174006'
-       OR email = 'testuser@test.com'
-);
-
-
-
-```
-
-
-## Auth Service DB Setup {#auth-service-db-setup}
-
-### Environment Variables
-
-```
-POSTGRES_DB=db;POSTGRES_PASSWORD=password;POSTGRES_USER=admin_user
-```

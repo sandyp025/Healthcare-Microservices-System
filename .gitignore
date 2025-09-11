@@ -43,7 +43,7 @@ Thumbs.db
 ### Docker ###
 *.tar
 *.pid
-.env
+.env.local
 docker-compose.override.yml
 
 ### Application configs ###
@@ -69,6 +69,8 @@ coverage/
 dist/
 build/
 .env.local
+.env
+databases/
 .env.development.local
 .env.test.local
 .env.production.local
