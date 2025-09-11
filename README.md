@@ -1,6 +1,3 @@
-Here’s the complete, long-form README you asked for. It preserves everything from your original README, folds in the new Appointment CQRS work (entities, Kafka listener, cached projections, DTO enrichment), keeps all screenshots (including `testing1…testing4`), uses the `.env` / `.env.example` pattern, and documents both manual `docker run` steps and the open-source `docker-compose.yml` flow.
-
----
 
 # Healthcare Microservices System
 
