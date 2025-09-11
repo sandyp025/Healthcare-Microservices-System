@@ -22,8 +22,8 @@ A comprehensive healthcare management platform built on Spring Boot microservice
 
 ## System Architecture Overview
 
-![System Architecture](screenshots/img1.png)
-##### Link for the image- (https://www.mermaidchart.com/app/projects/a8cc172d-2b60-466b-9f76-1fd0b82ffc5e/diagrams/f4dd8a17-1cb6-447d-8d3f-8c188a9e7c77/version/v0.1/edit)
+![System Architecture](screenshots/img.png)
+##### Link for the image-(https://www.mermaidchart.com/app/projects/a0da8956-4e28-4c70-abc7-549981a70200/diagrams/062c8f2f-d18c-429e-8039-9d4d4379e368/version/v0.1/edit)
 
 The system is decomposed into independently deployable services:
 
