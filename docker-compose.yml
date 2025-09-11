@@ -1,0 +1,209 @@
+version: "3.9"
+
+networks:
+  internal:
+    name: ${DOCKER_NETWORK}
+
+volumes:
+  patient-db-data:
+  appointment-db-data:
+  auth-db-data:
+  grafana-storage:
+
+services:
+  # ------------------------
+  # Databases
+  # ------------------------
+  patient-service-db:
+    image: postgres:latest
+    container_name: patient-service-db
+    networks:
+      - internal
+    ports:
+      - "5001:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./databases/patient-service-db:/var/lib/postgresql/data
+
+  appointment-service-db:
+    image: postgres:latest
+    container_name: appointment-service-db
+    networks:
+      - internal
+    ports:
+      - "5004:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./databases/appointment-service-db:/var/lib/postgresql/data
+
+  auth-service-db:
+    image: postgres:latest
+    container_name: auth-service-db
+    networks:
+      - internal
+    ports:
+      - "5002:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - ./databases/auth-service-db:/var/lib/postgresql/data
+
+  # ------------------------
+  # Infrastructure
+  # ------------------------
+  redis:
+    image: redis:latest
+    container_name: redis
+    networks:
+      - internal
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    networks:
+      - internal
+    ports:
+      - "9092:9092"
+      - "9094:9094"
+    environment:
+      KAFKA_CFG_ADVERTISED_LISTENERS: ${KAFKA_CFG_ADVERTISED_LISTENERS}
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: ${KAFKA_CFG_CONTROLLER_LISTENER_NAMES}
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CFG_CONTROLLER_QUORUM_VOTERS}
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP}
+      KAFKA_CFG_LISTENERS: ${KAFKA_CFG_LISTENERS}
+      KAFKA_CFG_NODE_ID: ${KAFKA_CFG_NODE_ID}
+      KAFKA_CFG_PROCESS_ROLES: ${KAFKA_CFG_PROCESS_ROLES}
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    networks:
+      - internal
+    ports:
+      - "9090:9090"
+    volumes:
+      - ${PROMETHEUS_CONFIG_LOCAL}:${PROMETHEUS_CONFIG_CONTAINER}
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    networks:
+      - internal
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+
+  # ------------------------
+  # Application Services
+  # ------------------------
+  patient-service:
+    build: ./patient-service
+    container_name: patient-service
+    networks:
+      - internal
+    ports:
+      - "${PATIENT_SERVICE_PORT}:${PATIENT_SERVICE_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: ${PATIENT_DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${PATIENT_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${PATIENT_DB_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+      SPRING_CACHE_TYPE: ${SPRING_CACHE_TYPE}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+      BILLING_SERVICE_ADDRESS: ${BILLING_SERVICE_ADDRESS}
+      BILLING_SERVICE_GRPC_PORT: ${BILLING_SERVICE_GRPC_PORT}
+    depends_on:
+      - patient-service-db
+      - kafka
+      - redis
+
+  appointment-service:
+    build: ./appointment-service
+    container_name: appointment-service
+    networks:
+      - internal
+    ports:
+      - "${APPOINTMENT_SERVICE_PORT}:${APPOINTMENT_SERVICE_PORT}"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://appointment-service-db:5432/db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+      SPRING_SQL_INIT_MODE: always
+      SPRING_CACHE_TYPE: ${SPRING_CACHE_TYPE}
+      SPRING_DATA_REDIS_HOST: ${REDIS_HOST}
+      SPRING_DATA_REDIS_PORT: ${REDIS_PORT}
+    depends_on:
+      - appointment-service-db
+      - kafka
+      - redis
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    networks:
+      - internal
+    ports:
+      - "${AUTH_SERVICE_PORT}:${AUTH_SERVICE_PORT}"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-service-db:5432/db
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      SPRING_SQL_INIT_MODE: always
+    depends_on:
+      - auth-service-db
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    networks:
+      - internal
+    ports:
+      - "${API_GATEWAY_PORT}:${API_GATEWAY_PORT}"
+    environment:
+      AUTH_SERVICE_URL: http://auth-service:${AUTH_SERVICE_PORT}
+    depends_on:
+      - auth-service
+      - patient-service
+      - appointment-service
+
+  billing-service:
+    build: ./billing-service
+    container_name: billing-service
+    networks:
+      - internal
+    ports:
+      - "${BILLING_SERVICE_HTTP_PORT}:${BILLING_SERVICE_HTTP_PORT}"
+      - "${BILLING_SERVICE_GRPC_PORT}:${BILLING_SERVICE_GRPC_PORT}"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+    depends_on:
+      - kafka
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: analytics-service
+    networks:
+      - internal
+    ports:
+      - "${ANALYTICS_SERVICE_PORT}:${ANALYTICS_SERVICE_PORT}"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: ${SPRING_KAFKA_BOOTSTRAP_SERVERS}
+    depends_on:
+      - kafka
