@@ -230,13 +230,16 @@ Responses include both appointment details and the latest cached patient fields,
 ### Screenshots
 
 * Get Appointments (CQRS read model):
-  ![Get Appointments](screenshots/testing1.png)
+![Get Appointments](screenshots/img5.png)
+![Get Appointments](screenshots/testing1.png)
+
 
 * Update Patient → event → projection updated:
   ![Update Patient](screenshots/testing2.png)
 
 * Kafka Topics:
-  ![Kafka Topics](screenshots/testing3.png)
+*   ![Kafka Topics](screenshots/img6.png)
+![Kafka Topics](screenshots/testing3.png)
 
 * Cached Patient table + logs:
 * updated name and email again = hello from patient service 1
@@ -251,6 +254,8 @@ Responses include both appointment details and the latest cached patient fields,
 * Auth: login to receive JWT; include `Authorization: Bearer <token>` for protected endpoints
 * Billing: gRPC call from Patient Service on patient creation
 * Analytics: consumes patient events for insights
+
+  ![Api gateway](screenshots/img7.png)
 
 ---
 
@@ -279,6 +284,7 @@ Responses include both appointment details and the latest cached patient fields,
 * Retry policies for transient Kafka failures
 * Timeouts and bulkheads to avoid cascade failures
 * Dead letter handling for poisoned messages (pattern described below)
+  ![Circuit Breakers](screenshots/img8.png)
 
 ---
 
@@ -361,6 +367,8 @@ Local development uses Docker’s internal network for discovery. For cloud envi
 * ElastiCache for managed Redis
 * The repo includes LocalStack to emulate AWS components locally (optional)
   ![LocalStack Dashboard](screenshots/localstack.png)
+*   ![LocalStack Dashboard](screenshots/img_1.png)
+
 
 ---
 
