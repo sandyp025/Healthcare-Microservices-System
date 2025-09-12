@@ -380,7 +380,8 @@ Postman collections cover:
 * Appointment lifecycle
 * Auth flows (login, token validation)
 * Event-driven scenarios
-
+  
+* ![Postman Example](screenshots/postman2.png)
 ![Postman Example](screenshots/postman.png)
 
 ---
